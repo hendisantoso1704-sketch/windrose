@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind Rose Generator | Data Analytics</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Variabel Warna Tema Utama */
+        :root {
+            --primary-color: #0ea5e9; /* Biru cerah modern */
+            --primary-hover: #0284c7;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --error-bg: #fef2f2;
+            --error-text: #ef4444;
+            --error-border: #f87171;
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            margin: 0; 
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        /* Desain Card Modern */
+        .container { 
+            width: 100%;
+            max-width: 700px; 
+            background-color: var(--card-bg);
+            padding: 40px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            text-align: center;
+        }
+
+        h2 {
+            font-weight: 700;
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: var(--text-dark);
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        /* Pesan Error */
+        .error-box { 
+            background-color: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid var(--error-border);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        /* Area Upload Modern */
+        .upload-form { 
+            margin: 20px 0; 
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            background-color: #f8fafc;
+            border-radius: 12px;
+            padding: 40px 20px;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background-color: #f0f9ff;
+        }
+
+        input[type="file"] {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        /* Custom style untuk pseudo-element tombol upload bawaan browser */
+        input[type="file"]::file-selector-button {
+            background-color: #e0f2fe;
+            color: var(--primary-hover);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-right: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background-color: #bae6fd;
+        }
+
+        /* Tombol Generate */
+        .btn-submit {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-submit:active {
+            transform: scale(0.98);
+        }
+
+        /* Hasil Grafik */
+        .result-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .result-section h3 {
+            font-size: 18px;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+        }
+
+        .result-image {
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background-color: white;
+        }
+
+        /* Responsivitas untuk layar HP */
+        @media (max-width: 600px) {
+            .container { padding: 24px 16px; }
+            h2 { font-size: 20px; }
+            .upload-area { padding: 30px 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Wind Rose Generator</h2>
+        <p class="subtitle">Visualisasikan data arah dan kecepatan angin dari file CSV Anda.</p>
+        
+        {% if error_msg %}
+            <div class="error-box">
+                ⚠️ {{ error_msg }}
+            </div>
+        {% endif %}
+
+        <div class="upload-form">
+            <form action="/" method="POST" enctype="multipart/form-data">
+                <div class="upload-area">
+                    <label for="file_csv" style="display: block; margin-bottom: 15px; font-weight: 500;">Pilih Dataset (CSV):</label>
+                    <input type="file" name="file_csv" id="file_csv" accept=".csv" required>
+                </div>
+                <button type="submit" class="btn-submit">Generate Grafik</button>
+            </form>
+        </div>
+
+        {% if plot_url %}
+            <div class="result-section">
+                <h3>Hasil Analisis Wind Rose</h3>
+                <img class="result-image" src="data:image/png;base64,{{ plot_url }}" alt="Grafik Wind Rose">
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>
