@@ -1,71 +1,70 @@
-from flask import Flask, render_template, request
+import streamlit as st
 import pandas as pd
-import matplotlib
-# Gunakan 'Agg' backend agar Matplotlib tidak membuka GUI window (penting untuk web server)
-matplotlib.use('Agg') 
-import matplotlib.pyplot as plt
-from windrose import WindroseAxes
-import io
-import base64
+import plotly.express as px
+import numpy as np
 
-app = Flask(__name__)
+# Konfigurasi Halaman
+st.set_page_config(page_title="Wind Rose OSO University", layout="wide")
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    plot_url = None
-    error_msg = None
+st.title("📊 Wind Rose Analysis Dashboard")
+st.markdown("Aplikasi web berbasis Python untuk analisis data angin (IoT & Kelautan).")
 
-    if request.method == 'POST':
-        # Cek apakah ada file yang diunggah
-        file = request.files.get('file_csv')
+# --- SIDEBAR ---
+st.sidebar.header("Panduan")
+template_csv = "Arah_Angin_deg,Kecepatan_Angin_ms\n45,2.5\n180,5.0\n225,8.5"
+st.sidebar.download_button(
+    label="📥 Download Template CSV",
+    data=template_csv,
+    file_name="template_angin.csv",
+    mime="text/csv"
+)
+
+# --- UPLOAD FILE ---
+uploaded_file = st.file_uploader("Unggah file CSV Anda", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file)
+        st.success(f"Berhasil memuat: {uploaded_file.name}")
         
-        if file and file.filename != '':
-            try:
-                # 1. Baca CSV
-                df = pd.read_csv(file)
-                
-                # Pastikan kolom ada
-                if 'Arah_Angin_deg' not in df.columns or 'Kecepatan_Angin_ms' not in df.columns:
-                    raise ValueError("Kolom 'Arah_Angin_deg' atau 'Kecepatan_Angin_ms' tidak ditemukan.")
+        # Deteksi Kolom Otomatis
+        all_cols = df.columns.tolist()
+        def find_col(keys, targets):
+            for c in keys:
+                if any(t in c.lower() for t in targets): return c
+            return keys
 
-                wd = df['Arah_Angin_deg']
-                ws = df['Kecepatan_Angin_ms']
+        col_arah = st.selectbox("Kolom Arah (Deg):", all_cols, index=all_cols.index(find_col(all_cols, ['arah', 'deg', 'dir'])))
+        col_speed = st.selectbox("Kolom Kecepatan (m/s):", all_cols, index=all_cols.index(find_col(all_cols, ['kecepatan', 'speed', 'ms'])))
 
-                # 2. Buat Plot Wind Rose
-                fig = plt.figure(figsize=(8, 8), dpi=100)
-                ax = WindroseAxes.from_ax(fig=fig)
-                
-                # =========================================================
-                # PENGATURAN POSISI MATA ANGIN (KOMPAS)
-                # =========================================================
-                ax.set_theta_zero_location("N") # Mengatur 0 derajat (Utara) berada di paling atas
-                ax.set_theta_direction(-1)      # Mengatur putaran searah jarum jam (clockwise)
-                # =========================================================
+        # Pembersihan Data
+        df[col_arah] = pd.to_numeric(df[col_arah], errors='coerce')
+        df[col_speed] = pd.to_numeric(df[col_speed], errors='coerce')
+        df = df.dropna(subset=[col_arah, col_speed])
 
-                ax.bar(wd, ws, normed=True, opening=0.85, edgecolor='white', nsector=16, cmap=plt.cm.viridis)
-                ax.set_legend(title="Kecepatan (m/s)", loc='lower right', decimal_places=1, fontsize=10)
-                
-                # Karena arah sudah searah jarum jam dimulai dari Utara (atas), 
-                # urutan array label ini sudah sangat tepat.
-                ax.set_xticklabels(['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'], fontsize=12)
-                
-                plt.title("Grafik Wind Rose", fontsize=14, pad=20)
+        # Binning & Plotting
+        bins =
+        labels = ['0-2 m/s', '2-4 m/s', '4-6 m/s', '6-8 m/s', '>8 m/s']
+        df['Speed Range'] = pd.cut(df[col_speed], bins=bins, labels=labels)
+        
+        directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+        df['Direction_Bin'] = ((df[col_arah] + 11.25) % 360 // 22.5).astype(int)
+        df['Arah'] = df['Direction_Bin'].apply(lambda x: directions[x])
 
-                # 3. Simpan plot ke dalam buffer memori (tidak disave ke hardisk)
-                img = io.BytesIO()
-                plt.savefig(img, format='png', bbox_inches='tight')
-                img.seek(0)
-                plt.close(fig) # Bersihkan memori
+        df_plot = df.groupby(['Arah', 'Speed Range']).size().reset_index(name='Freq')
+        df_plot['Persentase (%)'] = (df_plot['Freq'] / df_plot['Freq'].sum()) * 100
 
-                # 4. Konversi gambar ke base64 agar bisa dibaca HTML
-                plot_url = base64.b64encode(img.getvalue()).decode('utf8')
+        fig = px.bar_polar(
+            df_plot, r="Persentase (%)", theta="Arah", color="Speed Range",
+            color_discrete_sequence=px.colors.sequential.Plasma_r,
+            category_orders={"Arah": directions, "Speed Range": labels},
+            template="plotly_white"
+        )
+        
+        fig.update_layout(polar=dict(angularaxis=dict(direction='clockwise', rotation=90)))
+        st.plotly_chart(fig, use_container_width=True)
 
-            except Exception as e:
-                error_msg = str(e)
-
-    # Render template index.html dengan mengirimkan data plot atau pesan error
-    return render_template('index.html', plot_url=plot_url, error_msg=error_msg)
-
-if __name__ == '__main__':
-    # Menambahkan use_reloader=False akan mematikan fitur auto-restart
-    app.run(debug=True, use_reloader=False)
+    except Exception as e:
+        st.error(f"Error: {e}")
+else:
+    st.info("Silakan unggah file untuk memulai.")
